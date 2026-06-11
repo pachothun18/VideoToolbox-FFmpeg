@@ -1,0 +1,6 @@
+gradio==6.17.3
+huggingface_hub==1.19.0
+groovy==0.1.2
+safehttpx==0.1.7
+hf-gradio==0.4.1
+gradio-client==2.5.0
