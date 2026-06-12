@@ -97,7 +97,7 @@ def build():
 
         audio_codec.change(fn=update_bitrates, inputs=audio_codec, outputs=audio_bitrate)
 
-        def convert_wrapper(files, out_dir, fmt, enc_mode, enc_choice, depth_label, chroma_label, quality_val, a_codec, a_bitrate, extra):
+        def _run_convert(files, out_dir, fmt, enc_mode, enc_choice, depth_label, chroma_label, quality_val, a_codec, a_bitrate, extra):
             depth_map = {"自动": "auto", "8bit": "8bit", "10bit": "10bit"}
             chroma_map = {"自动": "auto", "4:2:0": "420", "4:2:2": "422", "4:4:4": "444"}
             encoder = _resolve_encoder(enc_choice)
@@ -110,7 +110,7 @@ def build():
             )
 
         btn.click(
-            fn=convert_wrapper,
+            fn=_run_convert,
             inputs=[files_input, output_dir, output_format, encoder_mode,
                     video_encoder, bit_depth, chroma, quality, audio_codec, audio_bitrate, additional_params],
             outputs=log)

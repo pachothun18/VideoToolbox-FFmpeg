@@ -15,6 +15,13 @@ def _update_bitrates(codec):
         return gr.update(choices=AUDIO_BITRATES, value="128k", interactive=True)
 
 
+def _run_upload(files, out_dir, mode, fmt, crf_val, ac, ab):
+    mode_key = "subtitle" if mode == "字幕烧录（需同名字幕）" else "transcode"
+    yield from run_batch_from_files(files, out_dir, None, mode_key, crf_val,
+                                    audio_codec=ac, audio_bitrate=ab if ac != 'copy' else '128k',
+                                    out_format=fmt)
+
+
 def build():
     with gr.TabItem("批量上传文件"):
         gr.Markdown("拖拽或点击添加多个视频文件。程序会自动查找同名字幕，并输出到指定目录。")
@@ -32,14 +39,4 @@ def build():
         btn = gr.Button("开始处理", variant="primary")
 
         audio_codec.change(fn=_update_bitrates, inputs=audio_codec, outputs=audio_br)
-
-        def upload_wrapper(files, out_dir, mode, fmt, crf_val, ac, ab):
-            mode_key = "subtitle" if mode == "字幕烧录（需同名字幕）" else "transcode"
-            yield from run_batch_from_files(files, out_dir, None, mode_key, crf_val,
-                                            audio_codec=ac, audio_bitrate=ab if ac != 'copy' else '128k',
-                                            out_format=fmt)
-
-        btn.click(
-            fn=upload_wrapper,
-            inputs=[files_input, output_dir, mode_radio, out_fmt, crf, audio_codec, audio_br],
-            outputs=log)
+        btn.click(fn=_run_upload, inputs=[files_input, output_dir, mode_radio, out_fmt, crf, audio_codec, audio_br], outputs=log)

@@ -15,6 +15,18 @@ def _update_bitrates(codec):
         return gr.update(choices=AUDIO_BITRATES, value="192k", interactive=True)
 
 
+def _run_gpu_trans(d, o, f, c, ac, ab):
+    yield from run_batch_from_directory(
+        d, o, force_cpu=False, with_subtitles=False, crf_value=c,
+        audio_codec=ac, audio_bitrate=ab if ac != 'copy' else '192k', out_format=f)
+
+
+def _run_cpu_trans(d, o, f, c, ac, ab):
+    yield from run_batch_from_directory(
+        d, o, force_cpu=True, with_subtitles=False, crf_value=c,
+        audio_codec=ac, audio_bitrate=ab if ac != 'copy' else '192k', out_format=f)
+
+
 def build():
     with gr.TabItem("GPU视频转码"):
         with gr.Row():
@@ -29,11 +41,7 @@ def build():
         btn = gr.Button("开始处理", variant="primary")
         log = gr.Textbox(label="处理日志", lines=20, autoscroll=True)
         audio_codec.change(fn=_update_bitrates, inputs=audio_codec, outputs=audio_br)
-        btn.click(
-            fn=lambda d, o, f, c, ac, ab: run_batch_from_directory(
-                d, o, force_cpu=False, with_subtitles=False, crf_value=c,
-                audio_codec=ac, audio_bitrate=ab if ac != 'copy' else '192k', out_format=f),
-            inputs=[input_dir, output_dir, out_fmt, crf, audio_codec, audio_br], outputs=log)
+        btn.click(fn=_run_gpu_trans, inputs=[input_dir, output_dir, out_fmt, crf, audio_codec, audio_br], outputs=log)
 
     with gr.TabItem("CPU视频转码"):
         with gr.Row():
@@ -48,8 +56,4 @@ def build():
         btn = gr.Button("开始处理", variant="primary")
         log = gr.Textbox(label="处理日志", lines=20, autoscroll=True)
         audio_codec.change(fn=_update_bitrates, inputs=audio_codec, outputs=audio_br)
-        btn.click(
-            fn=lambda d, o, f, c, ac, ab: run_batch_from_directory(
-                d, o, force_cpu=True, with_subtitles=False, crf_value=c,
-                audio_codec=ac, audio_bitrate=ab if ac != 'copy' else '192k', out_format=f),
-            inputs=[input_dir, output_dir, out_fmt, crf, audio_codec, audio_br], outputs=log)
+        btn.click(fn=_run_cpu_trans, inputs=[input_dir, output_dir, out_fmt, crf, audio_codec, audio_br], outputs=log)
