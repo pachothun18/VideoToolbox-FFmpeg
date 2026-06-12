@@ -1,8 +1,8 @@
 
 # 🎬 视频处理工具箱 (Video Toolbox)
 
-基于 Gradio 的 WebUI 视频处理工具，支持 GPU/CPU 字幕烧录、视频转码、批量处理、格式转换等功能。  
-提供 **Python 源码版** 和 **Windows 独立 EXE 版**（无需安装 Python）。
+基于 Gradio 的 WebUI 视频处理工具，支持 GPU/CPU 字幕烧录、视频转码、批量处理、格式转换等功能。
+提供 **Python 源码版** 和 **Windows 便携版**（无需安装 Python，解压即用）。
 
 ---
 
@@ -11,7 +11,7 @@
 -  **GPU/CPU 字幕烧录**：自动匹配同名字幕（ASS/SRT），支持 GPU 加速
 -  **GPU/CPU 视频转码**：递归处理子目录，保持原有目录结构
 -  **批量上传文件**：拖拽或点击添加多个视频，自动查找同名字幕
--  **通用视频转换**：自定义输出格式、编码器、质量、位深（8bit / 10bit / 自动）
+-  **通用视频转换**：自定义输出格式、编码器、质量、位深、色度采样
 -  **10bit 视频智能处理**：若显卡不支持 10bit 编码，自动转为 8bit 并保持 GPU 加速
 -  **WebUI 界面**：自动打开浏览器，支持 Windows / Linux
 -  **实时日志输出**：显示转码进度和 FFmpeg 详细错误信息
@@ -23,7 +23,7 @@
 | 版本 | 适用系统 | 运行方式 | 下载 |
 |------|----------|----------|------|
 | **源码版** | Windows / Linux | 需要 Python 3.8+ | 克隆本仓库 |
-| **EXE 版** | Windows 10/11 | 双击运行，无需 Python | 从 [Releases](../../releases) 下载 `VideoToolbox.exe` |
+| **便携版** | Windows 10/11 | 解压即用，无需 Python 和 FFmpeg | 从 [Releases](../../releases) 下载 zip 压缩包 |
 
 ---
 
@@ -47,16 +47,6 @@ cd VideoToolbox-FFmpeg
 pip install -r requirements.txt
 ```
 
-`requirements.txt` 内容如下：
-```
-gradio==6.17.3
-huggingface_hub==1.19.0
-groovy==0.1.2
-safehttpx==0.1.7
-hf-gradio==0.4.1
-gradio-client==2.5.0
-```
-
 ### 4. 运行
 
 - **Windows**：双击 `启动WebUI.bat`
@@ -66,48 +56,64 @@ gradio-client==2.5.0
 
 ---
 
-## ️ EXE 版使用方法
+##  便携版使用方法
 
-1. 从 [Releases](../../releases) 下载 `VideoToolbox.exe`
-2. 下载 **FFmpeg** 可执行文件（见下方说明），将 `ffmpeg.exe` 和 `ffprobe.exe` 与 `VideoToolbox.exe` 放在**同一文件夹**
-3. 双击 `VideoToolbox.exe` 运行，浏览器自动打开
+1. 从 [Releases](../../releases) 下载 zip 压缩包
+2. 解压到任意文件夹（建议路径不含中文或空格）
+3. 双击 `VideoToolbox.exe` 运行
+4. 浏览器将自动打开 `http://localhost:7860`
 
-> **注意**：EXE 版本不需要 Python 环境，但必须自行提供 FFmpeg。
+>  **提示**：便携版已内置 Python 运行时和 FFmpeg，无需额外安装任何依赖。
+
+压缩包内容说明：
+
+```
+VideoToolbox/
+├── VideoToolbox.exe    ← 主程序
+├── ffmpeg.exe          ← FFmpeg（已内置）
+├── ffprobe.exe         ← FFmpeg 分析工具
+├── ffplay.exe          ← FFmpeg 播放器
+├── *.dll               ← FFmpeg 运行时库
+└── _internal/          ← Python 运行时及依赖库
+```
 
 ---
 
 ##  FFmpeg 获取与配置
 
-本工具依赖 FFmpeg 实现所有音视频处理。请根据您的系统下载对应版本：
+本工具依赖 FFmpeg 实现所有音视频处理。
 
-### Windows 用户
+> **便携版用户无需操作**，FFmpeg 已内置在压缩包中。
 
-推荐从以下两个站点下载：
+### 源码版用户
+
+推荐从以下站点下载：
 
 - [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) – 提供完整版（默认 GPL 许可证）
 - [BtbN](https://github.com/BtbN/FFmpeg-Builds/releases) – 同时提供 **GPL** 和 **LGPL** 版本
 
-> 下载后解压，将 `bin` 文件夹内的 `ffmpeg.exe` 和 `ffprobe.exe` 复制到与主程序（`video_toolbox.py` 或 `VideoToolbox.exe`）相同的目录下，或添加到系统 PATH 环境变量。
+下载后解压，将 `bin` 文件夹内的 `ffmpeg.exe` 和 `ffprobe.exe` 复制到与 `video_toolbox.py` 相同的目录下，或添加到系统 PATH 环境变量。
 
 ---
 
 ##  许可证
 
-本项目使用 [MIT License](LICENSE)。  
+本项目使用 [MIT License](LICENSE)。
 **FFmpeg 是其各自所有者的项目，遵循 LGPL/GPL 许可证，与本项目独立。**
 
 ---
 
 ## 使用的开源项目
 
-本项目便携版压缩包中内置了FFmpeg，在此展示所用版本及源码和许可证链接
+本项目便携版压缩包中内置了 FFmpeg，在此展示所用版本及源码和许可证链接
 
 FFmpeg (LGPL variant, autobuild-2026-06-11-14-22)
 - 许可证：LGPLv3
 - 源代码：https://github.com/FFmpeg/FFmpeg/archive/d30dead35e7fecae51ccd4602273153c87b1bbd9.zip
 - 许可证原文：https://github.com/FFmpeg/FFmpeg/blob/master/COPYING.LGPLv3
 
-项目所使用的Python库
+项目所使用的 Python 库
+
 | 名称              | 版本号     | 许可证                              |
 |-------------------|-------------|--------------------------------------|
 | Jinja2            | 3.1.6       | BSD License                          |
