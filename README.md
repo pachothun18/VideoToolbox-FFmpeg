@@ -66,7 +66,7 @@ gradio-client==2.5.0
 
 ---
 
-##  EXE 版使用方法
+## ️ EXE 版使用方法
 
 1. 从 [Releases](../../releases) 下载 `VideoToolbox.exe`
 2. 下载 **FFmpeg** 可执行文件（见下方说明），将 `ffmpeg.exe` 和 `ffprobe.exe` 与 `VideoToolbox.exe` 放在**同一文件夹**
@@ -82,16 +82,31 @@ gradio-client==2.5.0
 
 ### Windows 用户
 
-推荐从以下两个站点下载**完整版**（包含 NVENC 支持）：
+推荐从以下两个站点下载：
 
-- [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) – 选择 `ffmpeg-release-full.7z` 或 `ffmpeg-release-full.zip`
-- [BtbN](https://github.com/BtbN/FFmpeg-Builds/releases) – 选择 `ffmpeg-master-latest-win64-gpl.zip`
+- [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) – 提供完整版（默认 GPL 许可证）
+- [BtbN](https://github.com/BtbN/FFmpeg-Builds/releases) – 同时提供 **GPL** 和 **LGPL** 版本
 
-> 注意：请勿下载 `ffmpeg-master-latest-win64-gpl-shared.zip`（动态链接版），请使用 **`-gpl`** 版本。
+> **LGPL 版本选择**：若您需要遵守 **LGPL 许可证**，请从 [BtbN 发布页](https://github.com/BtbN/FFmpeg-Builds/releases) 下载文件名中包含 **`-lgpl`** 的版本（例如 `ffmpeg-master-latest-win64-lgpl.zip`）。  
+> 下载后解压，将 `bin` 文件夹内的 `ffmpeg.exe` 和 `ffprobe.exe` 复制到与主程序（`video_toolbox.py` 或 `VideoToolbox.exe`）相同的目录下，或添加到系统 PATH 环境变量。
 
-下载后解压，将 `bin` 文件夹内的 `ffmpeg.exe` 和 `ffprobe.exe` 复制到与主程序（`video_toolbox.py` 或 `VideoToolbox.exe`）相同的目录下，或添加到系统 PATH 环境
+####  FFmpeg 许可证说明（LGPL）
 
+FFmpeg 是一个开源项目，核心库采用 **GNU Lesser General Public License (LGPL) 2.1** 或更高版本。LGPL 允许您在闭源项目中动态链接 FFmpeg 库而无需公开您的源代码。  
+如果您使用的是 **LGPL 版本** 的 FFmpeg 构建，请遵守以下要求：
+
+- 您必须明确声明您的程序使用了 FFmpeg，并提供 FFmpeg 的许可证副本。
+- 任何对 FFmpeg 本身的修改必须开源。
+- 若以静态链接方式使用，可能需要提供相关目标文件以供用户重新链接。
+
+完整的 LGPL 2.1 许可证文本请参阅：[GNU LGPL 2.1 官方文档](https://www.gnu.org/licenses/lgpl-2.1.html)  
+FFmpeg 项目主页：[https://ffmpeg.org](https://ffmpeg.org)
+
+> 注：部分 FFmpeg 构建（如 gyan.dev 的“完整版”或 BtbN 的 `-gpl` 版本）包含 GPL 许可的组件（例如 x264），此时整个构建需遵循 **GPL** 协议。请根据您的使用场景选择合适的版本。
+
+---
 
 ##  许可证
 
-本项目使用 [MIT License](LICENSE)。
+本项目使用 [MIT License](LICENSE)。  
+**FFmpeg 是其各自所有者的项目，遵循 LGPL/GPL 许可证，与本项目独立。**
