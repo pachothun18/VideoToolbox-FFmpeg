@@ -2,3 +2,6 @@
 /python/
 __pycache__/
 *.pyc
+build
+dist
+.idea
