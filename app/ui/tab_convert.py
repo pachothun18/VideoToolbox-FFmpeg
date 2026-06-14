@@ -2,12 +2,23 @@
 import gradio as gr
 from app.config import BASE_DIR
 from app.commands.profiles import (
-    LIBX264, EncoderProfile,
+    EncoderProfile,
     get_available_gpu_profiles, CPU_PROFILES, get_profile,
 )
 from app.pipeline.batch import run_general_convert
 
 AUDIO_BITRATES = ["96k", "128k", "160k", "192k", "256k", "320k", "384k", "448k", "512k"]
+
+
+def _parse_gpu_index(gpu_value: str | None) -> tuple[int | None, str | None]:
+    """Parse GPU value string 'index:hwaccel' to extract (index, hwaccel_type)."""
+    if not gpu_value:
+        return None, None
+    try:
+        parts = gpu_value.split(':')
+        return int(parts[0]), parts[1] if len(parts) > 1 else None
+    except (ValueError, IndexError):
+        return None, None
 
 
 def _gpu_encoder_names():
@@ -31,7 +42,7 @@ def _resolve_encoder(name: str) -> EncoderProfile:
     )
 
 
-def build():
+def build(gpu_selector):
     with gr.TabItem("通用视频转换"):
         gr.Markdown("拖拽或点击添加视频文件，可选择输出格式、编码器、质量参数、输出位深等。")
 
@@ -41,19 +52,15 @@ def build():
 
         with gr.Row():
             output_format = gr.Dropdown(label="输出格式", choices=["mp4", "mkv", "mov", "avi", "webm", "flv"], value="mp4")
-            encoder_mode = gr.Radio(label="编码模式", choices=["GPU (NVENC)", "CPU"], value="GPU (NVENC)")
+            encoder_mode = gr.Radio(label="编码模式", choices=["GPU", "CPU"], value="GPU")
 
-        gpu_names = _gpu_encoder_names()
-        if gpu_names:
-            init_choices = gpu_names
-            init_value = gpu_names[0]
-        else:
-            init_choices = _cpu_encoder_names()
-            init_value = "libx264"
+        init_choices = ["自动"] + _gpu_encoder_names()
+        if not _gpu_encoder_names():
+            init_choices = ["自动"] + _cpu_encoder_names()
 
         with gr.Row():
             video_encoder = gr.Dropdown(
-                label="视频编码器", choices=init_choices, value=init_value,
+                label="视频编码器", choices=init_choices, value="自动",
                 interactive=True, allow_custom_value=True)
             bit_depth = gr.Dropdown(
                 label="色深",
@@ -76,14 +83,12 @@ def build():
         log = gr.Textbox(label="转换日志", lines=20, autoscroll=True)
 
         def update_encoders(mode):
-            if mode == "GPU (NVENC)":
-                names = _gpu_encoder_names()
-                if not names:
-                    return gr.update(choices=["none"], value=None)
-                return gr.update(choices=names, value=names[0])
+            if mode == "GPU":
+                names = ["自动"] + _gpu_encoder_names()
+                return gr.update(choices=names, value="自动")
             else:
-                names = _cpu_encoder_names()
-                return gr.update(choices=names, value="libx264")
+                names = ["自动"] + _cpu_encoder_names()
+                return gr.update(choices=names, value="自动")
 
         encoder_mode.change(fn=update_encoders, inputs=encoder_mode, outputs=video_encoder)
 
@@ -97,20 +102,22 @@ def build():
 
         audio_codec.change(fn=update_bitrates, inputs=audio_codec, outputs=audio_bitrate)
 
-        def _run_convert(files, out_dir, fmt, enc_mode, enc_choice, depth_label, chroma_label, quality_val, a_codec, a_bitrate, extra):
+        def _run_convert(files, out_dir, fmt, enc_mode, enc_choice, depth_label, chroma_label, quality_val, a_codec, a_bitrate, extra, gpu):
             depth_map = {"自动": "auto", "8bit": "8bit", "10bit": "10bit"}
             chroma_map = {"自动": "auto", "4:2:0": "420", "4:2:2": "422", "4:4:4": "444"}
-            encoder = _resolve_encoder(enc_choice)
+            encoder = None if enc_choice == "自动" else _resolve_encoder(enc_choice)
             bitrate = a_bitrate if a_codec != "copy" else "192k"
+            gpu_index, hwaccel_type = _parse_gpu_index(gpu)
             yield from run_general_convert(
                 files, out_dir, fmt, encoder,
                 depth_map.get(depth_label, "auto"),
                 chroma_map.get(chroma_label, "auto"),
                 quality_val, a_codec, bitrate, extra,
+                gpu_index=gpu_index, hwaccel_type=hwaccel_type,
             )
 
         btn.click(
             fn=_run_convert,
             inputs=[files_input, output_dir, output_format, encoder_mode,
-                    video_encoder, bit_depth, chroma, quality, audio_codec, audio_bitrate, additional_params],
+                    video_encoder, bit_depth, chroma, quality, audio_codec, audio_bitrate, additional_params, gpu_selector],
             outputs=log)

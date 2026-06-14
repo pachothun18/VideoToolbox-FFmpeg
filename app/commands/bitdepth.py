@@ -63,7 +63,7 @@ def resolve_pixel_format(
     # Determine if we need an explicit format filter
     vf = None
     if out_fmt and input_pix_fmt and input_pix_fmt != out_fmt:
-        if encoder.is_nvenc or depth != _infer_depth(input_pix_fmt):
+        if encoder.use_gpu or depth != _infer_depth(input_pix_fmt):
             vf = f'format={out_fmt}'
 
     profile = encoder.get_profile(depth, actual_chroma)

@@ -19,6 +19,8 @@ def run_job(
     output_pix_fmt: str | None = None,
     profile: str | None = None,
     extra_args: str | None = None,
+    gpu_index: int | None = None,
+    hwaccel_type: str | None = None,
 ) -> tuple[bool, list[str]]:
     work_dir = create_temp_work_dir()
     try:
@@ -26,17 +28,21 @@ def run_job(
         create_hardlink_or_copy(video_path, temp_video)
 
         temp_sub = None
+        sub_filename = None
         if sub_path:
-            temp_sub = os.path.join(work_dir, "sub.ass")
+            sub_ext = os.path.splitext(sub_path)[1]  # '.srt' or '.ass'
+            sub_filename = f"sub{sub_ext}"
+            temp_sub = os.path.join(work_dir, sub_filename)
             shutil.copy2(sub_path, temp_sub)
 
         builder = FFmpegCommandBuilder()
         builder.set_input(os.path.basename(temp_video),
                           use_hwaccel=encoder.use_gpu,
                           hwaccel_type=encoder.hwaccel)
+        builder.set_gpu_index(gpu_index, hwaccel_type)
 
         if temp_sub:
-            builder.add_video_filter("subtitles=sub.ass")
+            builder.add_video_filter(f"subtitles={sub_filename}")
         if extra_vf:
             builder.add_video_filter(extra_vf)
 
@@ -48,14 +54,16 @@ def run_job(
         builder.set_audio(audio_codec, audio_bitrate)
         if extra_args:
             builder.set_extra_args(extra_args)
-        builder.set_output('output_temp.mp4')
+        out_ext = os.path.splitext(output_path)[1] or '.mp4'
+        temp_out_name = f'output_temp{out_ext}'
+        builder.set_output(temp_out_name)
 
         cmd = builder.build()
         cmd_str = ' '.join(cmd)
         ok, errors = run_ffmpeg(cmd, cwd=work_dir)
 
         if ok:
-            shutil.move(os.path.join(work_dir, 'output_temp.mp4'), output_path)
+            shutil.move(os.path.join(work_dir, temp_out_name), output_path)
             return True, [f"编码器: {enc_name}", f"命令: {cmd_str}", f"成功: {output_path}"]
         else:
             return False, [f"编码器: {enc_name}", f"命令: {cmd_str}"] + errors

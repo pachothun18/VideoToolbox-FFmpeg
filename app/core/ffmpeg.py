@@ -1,14 +1,23 @@
 import subprocess
+import functools
 from app.config import FFMPEG_PATH, FFPROBE_PATH
 
 
-def check_encoder_support(encoder_name):
+@functools.lru_cache(maxsize=1)
+def _get_ffmpeg_encoders() -> str:
+    """Cache ffmpeg -encoders output (called once per session)."""
     try:
-        cmd = [FFMPEG_PATH, '-encoders']
-        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='ignore')
-        return encoder_name in result.stdout
+        result = subprocess.run(
+            [FFMPEG_PATH, '-encoders'],
+            capture_output=True, text=True, encoding='utf-8', errors='ignore'
+        )
+        return result.stdout
     except Exception:
-        return False
+        return ''
+
+
+def check_encoder_support(encoder_name):
+    return encoder_name in _get_ffmpeg_encoders()
 
 
 def get_video_info(video_path):

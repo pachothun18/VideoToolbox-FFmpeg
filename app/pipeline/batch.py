@@ -1,7 +1,7 @@
 import os
 from app.core.filesystem import find_all_video_subtitle_pairs, find_all_videos
 from app.core.ffmpeg import get_video_info
-from app.commands.profiles import EncoderProfile, auto_select_encoder, get_profile
+from app.commands.profiles import EncoderProfile, auto_select_encoder
 from app.commands.bitdepth import resolve_pixel_format, is_10bit_pix_fmt, effective_chroma
 from app.pipeline.job import run_job
 
@@ -31,6 +31,8 @@ def run_batch_from_directory(
     audio_bitrate: str = '128k',
     out_format: str = 'mp4',
     output_suffix: str = '',
+    gpu_index: int | None = None,
+    hwaccel_type: str | None = None,
 ):
     """Generator that yields accumulated log text. Used by the four Gradio Tab processors."""
     log = LogBuffer()
@@ -77,7 +79,7 @@ def run_batch_from_directory(
             success_count += 1
             continue
 
-        encoder, out_pix_fmt, profile, custom_vf, msg = auto_select_encoder(video_path, force_cpu)
+        encoder, out_pix_fmt, profile, custom_vf, msg = auto_select_encoder(video_path, force_cpu, preferred_hwaccel=hwaccel_type)
         yield log.emit(f"  {msg}")
         yield log.emit(f"  编码器: {encoder.name}  pix_fmt: {out_pix_fmt}  profile: {profile}")
 
@@ -90,6 +92,8 @@ def run_batch_from_directory(
             extra_vf=custom_vf,
             output_pix_fmt=out_pix_fmt,
             profile=profile,
+            gpu_index=gpu_index,
+            hwaccel_type=hwaccel_type,
         )
         yield log.emit_many(logs)
         if ok:
@@ -107,6 +111,8 @@ def run_batch_from_files(
     audio_codec: str = 'aac',
     audio_bitrate: str = '128k',
     out_format: str = 'mp4',
+    gpu_index: int | None = None,
+    hwaccel_type: str | None = None,
 ):
     """Generator for uploaded file processing. Yields accumulated log text.
     If encoder is None, auto-select per file based on input depth/chroma.
@@ -137,7 +143,7 @@ def run_batch_from_files(
                     yield log.emit(f"  找到字幕: {os.path.basename(candidate)}")
                     break
             if not sub_path:
-                yield log.emit(f"  未找到同名字幕，跳过字幕烧录，仅转码")
+                yield log.emit("  未找到同名字幕，跳过字幕烧录，仅转码")
 
         suffix = "_hardsub" if (mode == "subtitle" and sub_path) else ""
         output_filename = f"{video_basename}{suffix}.{out_format}"
@@ -149,7 +155,7 @@ def run_batch_from_files(
             continue
 
         if encoder is None:
-            enc, out_fmt, profile, custom_vf, msg = auto_select_encoder(temp_path)
+            enc, out_fmt, profile, custom_vf, msg = auto_select_encoder(temp_path, preferred_hwaccel=hwaccel_type)
             yield log.emit(f"  {msg}")
             yield log.emit(f"  编码器: {enc.name}  pix_fmt: {out_fmt}  profile: {profile}")
         else:
@@ -164,6 +170,8 @@ def run_batch_from_files(
             extra_vf=custom_vf,
             output_pix_fmt=out_fmt,
             profile=profile,
+            gpu_index=gpu_index,
+            hwaccel_type=hwaccel_type,
         )
         yield log.emit_many(logs)
         if ok:
@@ -176,15 +184,20 @@ def run_general_convert(
     files: list,
     output_dir: str,
     out_format: str,
-    encoder: EncoderProfile,
+    encoder: EncoderProfile | None,
     target_depth: str,       # 'auto' | '8bit' | '10bit'
     chroma: str,             # 'auto' | '420' | '422' | '444'
     quality: int,
     audio_codec: str,
     audio_bitrate: str,
     extra_args: str | None = None,
+    gpu_index: int | None = None,
+    hwaccel_type: str | None = None,
 ):
-    """Generator for the general video conversion tab. Yields accumulated log text."""
+    """Generator for the general video conversion tab. Yields accumulated log text.
+    When encoder is None, auto-select per file via auto_select_encoder().
+    """
+    from app.commands.profiles import auto_select_encoder
     log = LogBuffer()
     if not files:
         yield log.emit("未选择任何文件。")
@@ -207,36 +220,40 @@ def run_general_convert(
             continue
 
         yield log.emit(f"[{idx}/{total}] 转换: {orig_name} -> {out_path}")
-        yield log.emit(f"  编码器: {encoder.name}, 质量: {quality}, 位深: {target_depth}, 色度: {chroma}")
 
-        input_codec, input_pix_fmt = get_video_info(temp_path)
-        input_is_10bit = is_10bit_pix_fmt(input_pix_fmt or '')
-        yield log.emit(f"  输入: codec={input_codec}, pix_fmt={input_pix_fmt}, 10bit={'是' if input_is_10bit else '否'}")
+        # Auto-select encoder per file if not explicitly chosen
+        if encoder is None:
+            cur_enc, out_pix_fmt, profile, custom_vf, msg = auto_select_encoder(
+                temp_path, preferred_hwaccel=hwaccel_type)
+            yield log.emit(f"  自动选择: {msg}")
+        else:
+            cur_enc = encoder
+            yield log.emit(f"  编码器: {cur_enc.name}, 质量: {quality}, 位深: {target_depth}, 色度: {chroma}")
+            input_codec, input_pix_fmt = get_video_info(temp_path)
+            yield log.emit(f"  输入: codec={input_codec}, pix_fmt={input_pix_fmt}")
+            out_pix_fmt, custom_vf, profile = resolve_pixel_format(input_pix_fmt, target_depth, chroma, cur_enc)
 
-        out_pix_fmt, custom_vf, profile = resolve_pixel_format(input_pix_fmt, target_depth, chroma, encoder)
+            # Non-420 chroma with GPU encoder: disable hwaccel decode
+            if cur_enc.use_gpu and effective_chroma(chroma, input_pix_fmt) != '420':
+                yield log.emit("  ℹ 非420色度：停用hwaccel解码，仅用GPU编码")
+                cur_enc = EncoderProfile(
+                    name=cur_enc.name, label=cur_enc.label,
+                    use_gpu=False, hwaccel=None,
+                    default_pix_fmt=cur_enc.default_pix_fmt,
+                    supports_10bit=cur_enc.supports_10bit,
+                    pix_fmt_10bit=cur_enc.pix_fmt_10bit,
+                    quality_param=cur_enc.quality_param,
+                    rate_control=cur_enc.rate_control,
+                    _profile_map=cur_enc._profile_map,
+                )
+                out_pix_fmt, custom_vf, profile = resolve_pixel_format(input_pix_fmt, target_depth, chroma, cur_enc)
 
-        # Non-420 chroma with NVENC: disable hwaccel decode because the CUDA
-        # pipeline forces NV12 (4:2:0) intermediate.  CPU decode + NVENC encode.
-        if encoder.is_nvenc and effective_chroma(chroma, input_pix_fmt) != '420':
-            yield log.emit(f"  ℹ 非420色度：停用hwaccel cuda解码，仅用NVENC编码")
-            encoder = EncoderProfile(
-                name=encoder.name, label=encoder.label,
-                use_gpu=False, hwaccel=None,
-                default_pix_fmt=encoder.default_pix_fmt,
-                supports_10bit=encoder.supports_10bit,
-                pix_fmt_10bit=encoder.pix_fmt_10bit,
-                quality_param=encoder.quality_param,
-                rate_control=encoder.rate_control,
-                _profile_map=encoder._profile_map,
-            )
-            out_pix_fmt, custom_vf, profile = resolve_pixel_format(input_pix_fmt, target_depth, chroma, encoder)
-
-        yield log.emit(f"  编码器: {encoder.name}  pix_fmt: {out_pix_fmt}  profile: {profile}")
+        yield log.emit(f"  编码器: {cur_enc.name}  pix_fmt: {out_pix_fmt}  profile: {profile}")
         if custom_vf:
             yield log.emit(f"  vf_filter: {custom_vf}")
 
         ok, logs = run_job(
-            temp_path, out_path, encoder,
+            temp_path, out_path, cur_enc,
             quality=quality,
             audio_codec=audio_codec,
             audio_bitrate=audio_bitrate,
@@ -244,6 +261,8 @@ def run_general_convert(
             output_pix_fmt=out_pix_fmt,
             profile=profile,
             extra_args=extra_args,
+            gpu_index=gpu_index,
+            hwaccel_type=hwaccel_type,
         )
         yield log.emit_many(logs)
         if ok:
