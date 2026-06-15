@@ -7,6 +7,35 @@ from app.commands.builder import FFmpegCommandBuilder
 from app.commands.profiles import EncoderProfile
 
 
+def _ensure_utf8_subtitle(filepath: str) -> None:
+    _COMMON_ENCODINGS = ('gbk', 'gb2312', 'gb18030', 'big5', 'shift_jis', 'euc-kr', 'iso-8859-1')
+    with open(filepath, 'rb') as f:
+        raw = f.read()
+    try:
+        raw.decode('utf-8')
+        return
+    except UnicodeDecodeError:
+        pass
+    for enc in _COMMON_ENCODINGS:
+        try:
+            text = raw.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    else:
+        try:
+            import chardet
+            result = chardet.detect(raw)
+            if result.get('encoding') and result['encoding'].lower() not in ('utf-8', 'ascii'):
+                text = raw.decode(result['encoding'])
+            else:
+                return
+        except Exception:
+            return
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.write(text)
+
+
 class FFmpegJob:
     def __init__(self, runner: FFmpegRunner, scanner: FileScanner,
                  builder_cls=FFmpegCommandBuilder):
@@ -43,6 +72,7 @@ class FFmpegJob:
                 sub_filename = f"sub{sub_ext}"
                 temp_sub = os.path.join(work_dir, sub_filename)
                 shutil.copy2(sub_path, temp_sub)
+                _ensure_utf8_subtitle(temp_sub)
 
             builder = self._builder_cls()
             builder.set_input(os.path.basename(temp_video),
