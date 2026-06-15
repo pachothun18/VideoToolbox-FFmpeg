@@ -39,6 +39,10 @@ class FFmpegCommandBuilder:
         if codec != 'copy':
             self._cmd.extend(['-b:a', bitrate])
 
+    def set_threads(self, n: int | None):
+        if n is not None and n > 0:
+            self._cmd.extend(['-threads', str(n)])
+
     def set_gpu_index(self, gpu_index: int | None, hwaccel_type: str | None = None):
         if gpu_index is not None:
             self._gpu_index = gpu_index
@@ -62,17 +66,38 @@ class FFmpegCommandBuilder:
                 cmd = self._inject_nvenc_gpu(cmd)
             elif self._hwaccel_type == 'qsv':
                 cmd = self._inject_qsv_device(cmd)
+            elif self._hwaccel_type == 'vaapi':
+                cmd = self._inject_vaapi_device(cmd)
         return cmd
 
     def _inject_nvenc_gpu(self, cmd: list[str]) -> list[str]:
-        """Insert -gpu <index> after -c:v <encoder> for NVENC."""
+        """Insert -gpu <index> after -c:v <encoder> for NVENC.
+        Only injects when the selected encoder is actually an NVENC encoder.
+        """
         try:
             cv_idx = cmd.index('-c:v')
+            encoder_name = cmd[cv_idx + 1] if cv_idx + 1 < len(cmd) else ''
+            if 'nvenc' not in encoder_name:
+                return cmd
             insert_pos = cv_idx + 2
             cmd.insert(insert_pos, '-gpu')
             cmd.insert(insert_pos + 1, str(self._gpu_index))
         except ValueError:
-            cmd.extend(['-gpu', str(self._gpu_index)])
+            pass
+        return cmd
+
+    def _inject_vaapi_device(self, cmd: list[str]) -> list[str]:
+        """Insert -hwaccel_device <device> after -hwaccel vaapi for VAAPI device selection.
+        Maps GPU index 0->renderD128, 1->renderD129, etc.
+        """
+        device = f'/dev/dri/renderD{128 + (self._gpu_index or 0)}'
+        try:
+            hw_idx = cmd.index('-hwaccel')
+            if hw_idx + 1 < len(cmd) and cmd[hw_idx + 1] == 'vaapi':
+                cmd.insert(hw_idx + 2, '-hwaccel_device')
+                cmd.insert(hw_idx + 3, device)
+        except ValueError:
+            cmd.extend(['-hwaccel_device', device])
         return cmd
 
     def _inject_qsv_device(self, cmd: list[str]) -> list[str]:

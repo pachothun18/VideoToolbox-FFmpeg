@@ -1,7 +1,8 @@
 import os
-import shutil
 import sys
 from pathlib import Path
+
+from app.core.platform import resolve_ffmpeg, resolve_ffprobe
 
 
 def get_base_dir():
@@ -13,14 +14,15 @@ def get_base_dir():
 
 BASE_DIR = get_base_dir()
 
-# Search exe directory first so local ffmpeg takes priority over system PATH.
-_exe_ffmpeg = BASE_DIR / "ffmpeg.exe"
-_exe_ffprobe = BASE_DIR / "ffprobe.exe"
+FFMPEG_PATH = resolve_ffmpeg(BASE_DIR)
+FFPROBE_PATH = resolve_ffprobe(BASE_DIR)
 
-FFMPEG_PATH = str(_exe_ffmpeg) if _exe_ffmpeg.exists() else shutil.which("ffmpeg") or "ffmpeg"
-FFPROBE_PATH = str(_exe_ffprobe) if _exe_ffprobe.exists() else shutil.which("ffprobe") or "ffprobe"
-
-IGNORE_DIRS = {'output', 'fonts', 'python', '__pycache__', '.git', '.venv', 'app'}
+IGNORE_DIRS = {
+    'output', 'fonts', 'python', 'venv',
+    '__pycache__', '.git', '.venv', 'app',
+    '.mypy_cache', '.pytest_cache', '.ruff_cache',
+    '.tox', '.coverage', 'build', 'dist',
+}
 VIDEO_EXTENSIONS = {'.mp4', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.m4v', '.rmvb'}
 SUBTITLE_EXTENSIONS = {'.ass', '.srt'}
 PREFERRED_LANG = 'SC'

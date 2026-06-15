@@ -1,37 +1,18 @@
 """Batch file upload tab."""
+from functools import partial
 import gradio as gr
 from app.config import BASE_DIR, VIDEO_EXTENSIONS
-from app.pipeline.batch import run_batch_from_files
-
-AUDIO_BITRATES = ["96k", "128k", "160k", "192k", "256k", "320k", "384k", "448k", "512k"]
+from app.ui.common import AUDIO_BITRATES, parse_gpu_index, update_bitrates as _common_update_bitrates, max_workers_slider
 
 
-def _parse_gpu_index(gpu_value: str | None) -> tuple[int | None, str | None]:
-    """Parse GPU value string 'index:hwaccel' to extract (index, hwaccel_type)."""
-    if not gpu_value:
-        return None, None
-    try:
-        parts = gpu_value.split(':')
-        return int(parts[0]), parts[1] if len(parts) > 1 else None
-    except (ValueError, IndexError):
-        return None, None
-
-
-def _update_bitrates(codec):
-    if codec == "mp3":
-        return gr.update(choices=AUDIO_BITRATES[:6], value="128k", interactive=True)
-    elif codec == "copy":
-        return gr.update(choices=["N/A (copy)"], value="N/A (copy)", interactive=False)
-    else:
-        return gr.update(choices=AUDIO_BITRATES, value="128k", interactive=True)
-
-
-def _run_upload(files, out_dir, mode, fmt, crf_val, ac, ab, gpu):
+def _run_upload(files, out_dir, mode, fmt, crf_val, ac, ab, gpu, workers_val):
     mode_key = "subtitle" if mode == "字幕烧录（需同名字幕）" else "transcode"
-    gpu_index, hwaccel_type = _parse_gpu_index(gpu)
+    gpu_index, hwaccel_type = parse_gpu_index(gpu)
+    from app.pipeline.batch import run_batch_from_files
     yield from run_batch_from_files(files, out_dir, None, mode_key, crf_val,
                                     audio_codec=ac, audio_bitrate=ab if ac != 'copy' else '128k',
-                                    out_format=fmt, gpu_index=gpu_index, hwaccel_type=hwaccel_type)
+                                    out_format=fmt, gpu_index=gpu_index, hwaccel_type=hwaccel_type,
+                                    max_workers=workers_val)
 
 
 def build(gpu_selector):
@@ -47,8 +28,10 @@ def build(gpu_selector):
         with gr.Row():
             audio_codec = gr.Dropdown(label="音频编码器", choices=["aac", "mp3", "copy", "libopus"], value="aac")
             audio_br = gr.Dropdown(label="音频比特率", choices=AUDIO_BITRATES, value="128k")
+        with gr.Row():
+            workers = max_workers_slider()
         log = gr.Textbox(label="处理日志", lines=20, autoscroll=True)
         btn = gr.Button("开始处理", variant="primary")
 
-        audio_codec.change(fn=_update_bitrates, inputs=audio_codec, outputs=audio_br)
-        btn.click(fn=_run_upload, inputs=[files_input, output_dir, mode_radio, out_fmt, crf, audio_codec, audio_br, gpu_selector], outputs=log)
+        audio_codec.change(fn=partial(_common_update_bitrates, default="128k"), inputs=audio_codec, outputs=audio_br)
+        btn.click(fn=_run_upload, inputs=[files_input, output_dir, mode_radio, out_fmt, crf, audio_codec, audio_br, gpu_selector, workers], outputs=log)

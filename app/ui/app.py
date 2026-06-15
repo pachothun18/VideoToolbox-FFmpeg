@@ -1,16 +1,10 @@
 """视频处理工具箱 - Gradio WebUI."""
 import gradio as gr
-
-from app.core.ffmpeg import check_encoder_support
-from app.core.gpu import detect_all_gpus
-from app.ui import tab_subtitle, tab_transcode, tab_upload, tab_convert
+from app import _gpus as _cached_gpus
 
 
 def _detect_gpu_and_encoders():
-    """Detect all GPUs and check corresponding hardware encoders.
-    Returns (gpu_status, enc_status) strings.
-    """
-    gpus = detect_all_gpus()
+    gpus = _cached_gpus
     if not gpus:
         return "未检测到GPU（仅CPU模式）", "无硬件加速编码器"
 
@@ -26,8 +20,7 @@ def _detect_gpu_and_encoders():
 
 
 def _build_gpu_choices():
-    """Build GPU selector choices from detected GPUs."""
-    gpus = detect_all_gpus()
+    gpus = _cached_gpus
     if not gpus:
         return [], None
     choices = [(gpu.label, gpu.value) for gpu in gpus]
@@ -64,6 +57,7 @@ def create_ui():
                 )
             gr.Markdown("", scale=1)
 
+        from app.ui import tab_subtitle, tab_transcode, tab_upload, tab_convert
         with gr.Tabs():
             tab_subtitle.build(gpu_selector)
             tab_transcode.build(gpu_selector)

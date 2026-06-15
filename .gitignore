@@ -5,3 +5,13 @@ __pycache__/
 build
 dist
 .idea
+avcodec-62.dll
+avdevice-62.dll
+avfilter-11.dll
+avformat-62.dll
+avutil-60.dll
+ffmpeg.exe
+ffplay.exe
+ffprobe.exe
+swresample-6.dll
+swscale-9.dll

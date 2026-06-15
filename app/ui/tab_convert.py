@@ -5,20 +5,7 @@ from app.commands.profiles import (
     EncoderProfile,
     get_available_gpu_profiles, CPU_PROFILES, get_profile,
 )
-from app.pipeline.batch import run_general_convert
-
-AUDIO_BITRATES = ["96k", "128k", "160k", "192k", "256k", "320k", "384k", "448k", "512k"]
-
-
-def _parse_gpu_index(gpu_value: str | None) -> tuple[int | None, str | None]:
-    """Parse GPU value string 'index:hwaccel' to extract (index, hwaccel_type)."""
-    if not gpu_value:
-        return None, None
-    try:
-        parts = gpu_value.split(':')
-        return int(parts[0]), parts[1] if len(parts) > 1 else None
-    except (ValueError, IndexError):
-        return None, None
+from app.ui.common import AUDIO_BITRATES, parse_gpu_index, update_bitrates, max_workers_slider
 
 
 def _gpu_encoder_names():
@@ -33,7 +20,6 @@ def _resolve_encoder(name: str) -> EncoderProfile:
     p = get_profile(name)
     if p is not None:
         return p
-    # Custom encoder — treat as CPU with no 10bit support
     return EncoderProfile(
         name=name, label=name,
         use_gpu=False, hwaccel=None,
@@ -77,6 +63,7 @@ def build(gpu_selector):
             audio_bitrate = gr.Dropdown(label="音频比特率", choices=AUDIO_BITRATES, value="192k")
 
         with gr.Row():
+            workers = max_workers_slider()
             additional_params = gr.Textbox(label="额外FFmpeg参数（可选）", placeholder="例如: -preset fast -tune film")
 
         btn = gr.Button("开始转换", variant="primary")
@@ -92,32 +79,26 @@ def build(gpu_selector):
 
         encoder_mode.change(fn=update_encoders, inputs=encoder_mode, outputs=video_encoder)
 
-        def update_bitrates(codec):
-            if codec == "mp3":
-                return gr.update(choices=AUDIO_BITRATES[:6], value="192k", interactive=True)
-            elif codec == "copy":
-                return gr.update(choices=["N/A (copy)"], value="N/A (copy)", interactive=False)
-            else:
-                return gr.update(choices=AUDIO_BITRATES, value="192k", interactive=True)
-
         audio_codec.change(fn=update_bitrates, inputs=audio_codec, outputs=audio_bitrate)
 
-        def _run_convert(files, out_dir, fmt, enc_mode, enc_choice, depth_label, chroma_label, quality_val, a_codec, a_bitrate, extra, gpu):
+        def _run_convert(files, out_dir, fmt, enc_mode, enc_choice, depth_label, chroma_label, quality_val, a_codec, a_bitrate, extra, gpu, workers_val):
             depth_map = {"自动": "auto", "8bit": "8bit", "10bit": "10bit"}
             chroma_map = {"自动": "auto", "4:2:0": "420", "4:2:2": "422", "4:4:4": "444"}
             encoder = None if enc_choice == "自动" else _resolve_encoder(enc_choice)
             bitrate = a_bitrate if a_codec != "copy" else "192k"
-            gpu_index, hwaccel_type = _parse_gpu_index(gpu)
+            gpu_index, hwaccel_type = parse_gpu_index(gpu)
+            from app.pipeline.batch import run_general_convert
             yield from run_general_convert(
                 files, out_dir, fmt, encoder,
                 depth_map.get(depth_label, "auto"),
                 chroma_map.get(chroma_label, "auto"),
                 quality_val, a_codec, bitrate, extra,
                 gpu_index=gpu_index, hwaccel_type=hwaccel_type,
+                max_workers=workers_val,
             )
 
         btn.click(
             fn=_run_convert,
             inputs=[files_input, output_dir, output_format, encoder_mode,
-                    video_encoder, bit_depth, chroma, quality, audio_codec, audio_bitrate, additional_params, gpu_selector],
+                    video_encoder, bit_depth, chroma, quality, audio_codec, audio_bitrate, additional_params, gpu_selector, workers],
             outputs=log)
