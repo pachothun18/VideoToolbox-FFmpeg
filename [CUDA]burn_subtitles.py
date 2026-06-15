@@ -16,7 +16,7 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 
 def select_encoder_and_params(video_path):
     codec, pix_fmt = get_video_info(video_path)
-    is_10bit = pix_fmt in ('yuv420p10le', 'yuv422p10le', 'yuv444p10le')
+    is_10bit = pix_fmt in ('yuv420p10le', 'yuv422p10le', 'yuv444p10le', 'p010le', 'p010')
     has_h264 = check_encoder_support('h264_nvenc')
     has_hevc = check_encoder_support('hevc_nvenc')
 

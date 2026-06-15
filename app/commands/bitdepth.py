@@ -2,7 +2,7 @@ from app.commands.profiles import EncoderProfile
 
 
 class PixelFormatResolver:
-    _10BIT_FMTS = frozenset({'yuv420p10le', 'yuv422p10le', 'yuv444p10le', 'p010le', 'p010'})
+    _10BIT_FMTS = frozenset({'yuv420p10le', 'yuv422p10le', 'yuv444p10le', 'p010le', 'p010', 'p016le'})
 
     _CHROMA_MAP = {
         'yuv420p': '420', 'yuvj420p': '420', 'nv12': '420',
@@ -90,11 +90,7 @@ def _infer_depth(pix_fmt: str | None) -> str:
 def _parse_pix_fmt(pix_fmt: str | None) -> tuple[str, str]:
     if not pix_fmt:
         return '8bit', '420'
-    if pix_fmt in ('yuv420p10le', 'yuv422p10le', 'yuv444p10le',
-                   'p010le', 'p010', 'p016le'):
-        depth = '10bit'
-    else:
-        depth = '8bit'
+    depth = '10bit' if pix_fmt in PixelFormatResolver._10BIT_FMTS else '8bit'
     fmt_lower = pix_fmt.lower()
     if '444' in fmt_lower:
         chroma = '444'

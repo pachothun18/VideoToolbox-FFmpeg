@@ -43,7 +43,7 @@ hiddenimports += [
     'websockets',
     'PIL',
     'numpy',
-    'ffmpy',
+
     'packaging',
     'anyio',
     'sniffio',
@@ -60,7 +60,7 @@ hiddenimports += [
     'pygments',
     'tomlkit',
     'python_multipart',
-    'aiofiles',
+
     'orjson',
     'pandas',
     'altair',
@@ -147,5 +147,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,
+    icon='VideoToolbox.ico',
 )

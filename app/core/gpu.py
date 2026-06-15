@@ -36,6 +36,7 @@ class GPUDetector:
     def __init__(self, ffmpeg_runner: 'FFmpegRunner'):
         self._runner = ffmpeg_runner
         self._macos_gpus_cache: list[GPUInfo] | None = None
+        self._windows_gpus_cache: list[tuple[str, str, str]] | None = None
 
     def detect_all(self) -> list[GPUInfo]:
         gpus = []
@@ -46,7 +47,73 @@ class GPUDetector:
         else:
             gpus.extend(self.detect_amd())
             gpus.extend(self.detect_intel())
+        if platform.system() == 'Linux' and not gpus:
+            gpus.extend(self._detect_linux_fallback())
         return gpus
+
+    def _windows_vendor_gpus(self) -> list[tuple[str, str, str]] | None:
+        if self._windows_gpus_cache is not None:
+            return self._windows_gpus_cache
+        if platform.system() != 'Windows':
+            self._windows_gpus_cache = []
+            return []
+        for method in [self._query_wmic, self._query_powershell]:
+            result = method()
+            if result:
+                self._windows_gpus_cache = result
+                return result
+        self._windows_gpus_cache = []
+        return []
+
+    def _query_wmic(self) -> list[tuple[str, str, str]] | None:
+        try:
+            result = subprocess.run(
+                ['wmic', 'path', 'win32_VideoController', 'get', 'name,driverVersion', '/format:csv'],
+                capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=15
+            )
+            if result.returncode == 0:
+                entries = []
+                for line in result.stdout.strip().splitlines():
+                    if not line.strip() or ',' not in line:
+                        continue
+                    parts = line.split(',')
+                    if len(parts) < 3:
+                        continue
+                    name = parts[1].strip()
+                    driver = parts[2].strip()
+                    if name and driver:
+                        entries.append((name, name.upper(), driver))
+                return entries if entries else None
+        except Exception:
+            pass
+        return None
+
+    def _query_powershell(self) -> list[tuple[str, str, str]] | None:
+        try:
+            ps_cmd = [
+                'powershell', '-NoProfile', '-Command',
+                'Get-CimInstance Win32_VideoController | Select-Object Name,DriverVersion | ConvertTo-Csv -NoTypeInformation'
+            ]
+            result = subprocess.run(
+                ps_cmd, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=15
+            )
+            if result.returncode == 0:
+                entries = []
+                for i, line in enumerate(result.stdout.strip().splitlines()):
+                    line = line.strip()
+                    if i == 0 or not line or ',' not in line:
+                        continue
+                    parts = [p.strip('"') for p in line.split(',')]
+                    if len(parts) < 2:
+                        continue
+                    name = parts[0]
+                    driver = parts[1]
+                    if name and driver:
+                        entries.append((name, name.upper(), driver))
+                return entries if entries else None
+        except Exception:
+            pass
+        return None
 
     def detect_nvidia(self) -> list[GPUInfo]:
         try:
@@ -92,65 +159,24 @@ class GPUDetector:
                            hwaccel: str, encoders: list[str]) -> list[GPUInfo]:
         if platform.system() != 'Windows':
             return []
-        gpu_lines = self._query_windows_gpus()
-        if not gpu_lines:
+        entries = self._windows_vendor_gpus()
+        if not entries:
             return []
         gpus = []
         idx = 0
-        for line in gpu_lines:
-            parts = line.split(',')
-            if len(parts) < 2:
-                continue
-            name = parts[0].strip()
-            driver = parts[1].strip()
-            if any(kw in name.upper() for kw in vendor_keywords):
+        for name, name_upper, driver in entries:
+            if any(kw in name_upper for kw in vendor_keywords):
                 supported = [e for e in encoders if self._runner.check_encoder(e)]
                 gpus.append(GPUInfo(idx, vendor_label, name, driver, hwaccel, supported))
                 idx += 1
         return gpus
 
-    def _query_windows_gpus(self) -> list[str]:
-        try:
-            result = subprocess.run(
-                ['wmic', 'path', 'win32_VideoController', 'get', 'name,driverVersion', '/format:csv'],
-                capture_output=True, text=True, encoding='utf-8', errors='ignore', timeout=10
-            )
-            if result.returncode == 0:
-                lines = []
-                for line in result.stdout.strip().splitlines():
-                    if not line.strip() or ',' not in line:
-                        continue
-                    parts = line.split(',')
-                    if len(parts) < 3:
-                        continue
-                    lines.append(f"{parts[1].strip()},{parts[2].strip()}")
-                if lines:
-                    return lines
-        except Exception:
-            pass
-
-        try:
-            ps_cmd = [
-                'powershell', '-NoProfile', '-Command',
-                'Get-CimInstance Win32_VideoController | Select-Object Name,DriverVersion | ConvertTo-Csv -NoTypeInformation'
-            ]
-            result = subprocess.run(
-                ps_cmd, capture_output=True, text=True, encoding='utf-8', errors='ignore', timeout=15
-            )
-            if result.returncode == 0:
-                lines = []
-                for i, line in enumerate(result.stdout.strip().splitlines()):
-                    line = line.strip()
-                    if i == 0 or not line or ',' not in line:
-                        continue
-                    parts = [p.strip('"') for p in line.split(',')]
-                    if len(parts) >= 2:
-                        lines.append(f"{parts[0]},{parts[1]}")
-                if lines:
-                    return lines
-        except Exception:
-            pass
-
+    def _detect_linux_fallback(self) -> list[GPUInfo]:
+        """Linux 回退：通过 VAAPI 编码器推断 GPU（仅 lspci 失败时调用）。"""
+        vaapi_encoders = ['h264_vaapi', 'hevc_vaapi']
+        supported = [e for e in vaapi_encoders if self._runner.check_encoder(e)]
+        if supported:
+            return [GPUInfo(0, 'intel', 'Linux GPU (via VAAPI)', 'unknown', 'vaapi', supported)]
         return []
 
     def _detect_macos_gpu(self) -> list[GPUInfo]:

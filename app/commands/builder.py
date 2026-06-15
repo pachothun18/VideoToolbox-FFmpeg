@@ -1,3 +1,5 @@
+import os
+
 from app.config import FFMPEG_PATH
 from app.commands.profiles import EncoderProfile
 
@@ -56,7 +58,9 @@ class FFmpegCommandBuilder:
         if self._vf_parts:
             self._cmd.extend(['-vf', ','.join(self._vf_parts)])
         if faststart:
-            self._cmd.extend(['-movflags', '+faststart'])
+            ext = os.path.splitext(path)[1].lower()
+            if ext in ('.mp4', '.mov', '.m4v'):
+                self._cmd.extend(['-movflags', '+faststart'])
         self._cmd.extend(['-y', path])
 
     def build(self) -> list[str]:
