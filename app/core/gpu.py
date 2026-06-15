@@ -39,7 +39,8 @@ class GPUDetector:
 
     def detect_all(self) -> list[GPUInfo]:
         gpus = []
-        gpus.extend(self.detect_nvidia())
+        if platform.system() != 'Darwin':
+            gpus.extend(self.detect_nvidia())
         if platform.system() == 'Darwin':
             gpus.extend(self._detect_macos_gpu())
         else:
@@ -51,12 +52,13 @@ class GPUDetector:
         try:
             result = subprocess.run(
                 ['nvidia-smi', '--query-gpu=index,name,driver_version', '--format=csv,noheader'],
-                capture_output=True, text=True, encoding='utf-8', errors='ignore'
+                capture_output=True, text=True, encoding='utf-8', errors='ignore',
+                timeout=15,
             )
             if result.returncode == 0:
                 gpus = []
                 for line in result.stdout.strip().splitlines():
-                    parts = [p.strip() for p in line.split(',')]
+                    parts = [p.strip() for p in line.split(',', 2)]
                     if len(parts) >= 3:
                         idx = int(parts[0])
                         name = parts[1]
@@ -170,17 +172,20 @@ class GPUDetector:
         gpus = []
         idx = 0
         for line in result.stdout.splitlines():
-            if 'Chipset Model:' in line:
-                chipset = line.split(':', 1)[1].strip()
-                if 'AMD' in chipset or 'Radeon' in chipset:
-                    vendor = 'amd'
-                elif 'Intel' in chipset:
-                    vendor = 'intel'
-                else:
-                    vendor = 'apple'
-                supported = [e for e in _MACOS_ENCODERS if self._runner.check_encoder(e)]
-                gpus.append(GPUInfo(idx, vendor, chipset, 'macos', 'videotoolbox', supported))
-                idx += 1
+            if not line.startswith('    ') or not line.rstrip().endswith(':'):
+                continue
+            name = line.strip()[:-1].strip()
+            if not name or name == 'Graphics/Displays':
+                continue
+            if 'AMD' in name or 'Radeon' in name:
+                vendor = 'amd'
+            elif 'Intel' in name:
+                vendor = 'intel'
+            else:
+                vendor = 'apple'
+            supported = [e for e in _MACOS_ENCODERS if self._runner.check_encoder(e)]
+            gpus.append(GPUInfo(idx, vendor, name, 'macos', 'videotoolbox', supported))
+            idx += 1
 
         self._macos_gpus_cache = gpus
         return gpus

@@ -54,6 +54,12 @@ _VT_HEVC_PROFILES = {
     ('10bit', '444'): None,
 }
 
+_VT_PRORES_PROFILES = {
+    ('8bit',  '420'): '2',
+    ('8bit',  '422'): '2',
+    ('8bit',  '444'): '4',
+}
+
 
 _HEVC_SW_PROFILES = {
     ('8bit',  '420'): None,
@@ -138,6 +144,8 @@ class EncoderProfile:
         if self.is_nvenc or self.is_amf or self.is_vaapi:
             return _nv_pix_fmt(depth, chroma, self.pix_fmt_10bit)
         if self.is_videotoolbox:
+            if 'prores' in self.name:
+                return None
             return _VT_PIX_FMT_TABLE.get((depth, chroma))
         return _PIX_FMT_TABLE.get((depth, chroma))
 
@@ -273,10 +281,18 @@ HEVC_VIDEOTOOLBOX = EncoderProfile(
     _profile_map=_VT_HEVC_PROFILES,
 )
 
+PRORES_VIDEOTOOLBOX = EncoderProfile(
+    name='prores_videotoolbox', label='prores_videotoolbox (ProRes)',
+    use_gpu=True, hwaccel='videotoolbox',
+    default_pix_fmt='yuv422p', supports_10bit=False, pix_fmt_10bit=None,
+    quality_param='quality', rate_control=[],
+    _profile_map=_VT_PRORES_PROFILES,
+)
+
 ALL_PROFILES = [H264_NVENC, HEVC_NVENC, H264_AMF, HEVC_AMF, AV1_AMF,
                 H264_QSV, HEVC_QSV, AV1_QSV,
                 H264_VAAPI, HEVC_VAAPI,
-                H264_VIDEOTOOLBOX, HEVC_VIDEOTOOLBOX,
+                H264_VIDEOTOOLBOX, HEVC_VIDEOTOOLBOX, PRORES_VIDEOTOOLBOX,
                 LIBX264, LIBX265, LIBSVTAV1, LIBVPX_VP9]
 GPU_PROFILES = [p for p in ALL_PROFILES if p.use_gpu]
 CPU_PROFILES = [p for p in ALL_PROFILES if not p.use_gpu]

@@ -94,6 +94,7 @@ class BatchProcessor:
         suffix = output_suffix or ('_hardsub' if with_subtitles else '')
         total = len(items)
         success_count = 0
+        claimed = set()
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_map = {}
@@ -108,10 +109,12 @@ class BatchProcessor:
                 name_without_ext = os.path.splitext(basename)[0]
                 output_path = os.path.join(out_subdir, f"{name_without_ext}{suffix}.{out_format}")
 
-                if os.path.exists(output_path):
+                if output_path in claimed or os.path.exists(output_path):
                     yield log.emit(f"  跳过: {output_path}")
-                    success_count += 1
+                    if output_path not in claimed:
+                        success_count += 1
                     continue
+                claimed.add(output_path)
 
                 encoder, out_pix_fmt, profile, custom_vf, msg = self._registry.auto_select(
                     video_path, force_cpu, preferred_hwaccel=hwaccel_type)
@@ -159,6 +162,7 @@ class BatchProcessor:
         os.makedirs(output_dir, exist_ok=True)
         total = len(files)
         success_count = 0
+        claimed = set()
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_map = {}
@@ -185,10 +189,12 @@ class BatchProcessor:
                 output_filename = f"{video_basename}{suffix}.{out_format}"
                 output_path = os.path.join(output_dir, output_filename)
 
-                if os.path.exists(output_path):
+                if output_path in claimed or os.path.exists(output_path):
                     yield log.emit(f"  跳过: {output_path}")
-                    success_count += 1
+                    if output_path not in claimed:
+                        success_count += 1
                     continue
+                claimed.add(output_path)
 
                 if encoder is None:
                     enc, out_fmt, profile, custom_vf, msg = self._registry.auto_select(
@@ -241,6 +247,7 @@ class BatchProcessor:
         os.makedirs(output_dir, exist_ok=True)
         total = len(files)
         success_count = 0
+        claimed = set()
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_map = {}
@@ -251,10 +258,12 @@ class BatchProcessor:
                 basename = os.path.splitext(orig_name)[0]
                 out_path = os.path.join(output_dir, f"{basename}.{out_format}")
 
-                if os.path.exists(out_path):
+                if out_path in claimed or os.path.exists(out_path):
                     yield log.emit(f"[{idx}/{total}] 跳过（已存在）: {out_path}")
-                    success_count += 1
+                    if out_path not in claimed:
+                        success_count += 1
                     continue
+                claimed.add(out_path)
 
                 yield log.emit(f"[{idx}/{total}] 转换: {orig_name} -> {out_path}")
 

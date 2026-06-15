@@ -52,7 +52,8 @@ class FFmpegJob:
             builder.set_threads(threads)
 
             if temp_sub:
-                builder.add_video_filter(f"subtitles={sub_filename}")
+                escaped = sub_filename.replace('\\', '\\\\').replace(':', '\\:').replace("'", "\\'")
+                builder.add_video_filter(f"subtitles={escaped}")
             if extra_vf:
                 builder.add_video_filter(extra_vf)
 

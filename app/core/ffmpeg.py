@@ -1,6 +1,7 @@
 """FFmpeg 进程管理、编码器检测、视频信息查询。"""
 import re
 import subprocess
+import threading
 
 
 class FFmpegRunner:
@@ -11,6 +12,7 @@ class FFmpegRunner:
         self.ffprobe_path = ffprobe_path
         self.timeout = timeout
         self._encoders_cache: str | None = None
+        self._encoders_lock = threading.Lock()
 
     # ── 命令执行 ────────────────────────────────────────────────────
 
@@ -46,14 +48,16 @@ class FFmpegRunner:
     def _ensure_encoders_cache(self) -> str:
         """懒加载并缓存 ffmpeg -encoders 输出。"""
         if self._encoders_cache is None:
-            try:
-                result = subprocess.run(
-                    [self.ffmpeg_path, '-encoders'],
-                    capture_output=True, text=True, encoding='utf-8', errors='ignore',
-                )
-                self._encoders_cache = result.stdout
-            except Exception:
-                self._encoders_cache = ''
+            with self._encoders_lock:
+                if self._encoders_cache is None:
+                    try:
+                        result = subprocess.run(
+                            [self.ffmpeg_path, '-encoders'],
+                            capture_output=True, text=True, encoding='utf-8', errors='ignore',
+                        )
+                        self._encoders_cache = result.stdout
+                    except Exception:
+                        self._encoders_cache = ''
         return self._encoders_cache
 
     def check_encoder(self, name: str) -> bool:
